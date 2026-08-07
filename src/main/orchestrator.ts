@@ -33,6 +33,7 @@ import { checkEnvironment } from './services/environment.js';
 import { BUILDER_DISTRO, probeCapabilities, runInDistro } from './services/wsl.js';
 import { scanDisks } from './services/usb-service.js';
 import { flashImage, FlashCancelledError } from './services/flash-service.js';
+import { provisionBuilderDistro } from './services/provision.js';
 import {
   copyImageIntoDistro,
   deriveOutputPath,
@@ -199,6 +200,27 @@ export class Orchestrator {
       this.emitState();
     }
     return report;
+  }
+
+  /**
+   * Best-effort provisioning of the dedicated Arch builder distro, then a fresh
+   * environment check. Streams progress to the log; never throws to the caller
+   * (failures are logged with a pointer to the manual steps).
+   */
+  async provisionDistro(): Promise<void> {
+    this.logger.info('Setting up the builder distro (best-effort). This can take several minutes.');
+    try {
+      await provisionBuilderDistro(this.distro, this.config.workspaceWindowsPath, {
+        onLog: (m) => this.logger.info(m),
+      });
+      this.logger.info('Builder distro setup finished. Re-checking environment.');
+    } catch (err) {
+      this.logger.error(
+        `Builder distro setup failed: ${err instanceof Error ? err.message : String(err)}. ` +
+          'See TROUBLESHOOTING.md for the manual steps.',
+      );
+    }
+    await this.checkEnvironment();
   }
 
   /** Record a selected image and run instant (filename+size) validation. */

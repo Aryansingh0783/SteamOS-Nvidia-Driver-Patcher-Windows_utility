@@ -23,10 +23,20 @@
 - **WSL2 not installed** → run `wsl --install` in an elevated PowerShell, reboot,
   re-check. Click *Install WSL2* in the app for Microsoft's guide.
 - **Builder distro not set up** → the app needs an Arch distro named
-  `SteamOS-NVIDIA-Builder` (it uses `pacman`/`readelf` on the host). Import an
-  Arch WSL rootfs under exactly that name and install the required tools
-  (`losetup btrfs-progs rsync curl kmod zstd python binutils`). The app never
-  modifies your other distros.
+  `SteamOS-NVIDIA-Builder` (it uses `pacman`/`readelf` on the host).
+  - **Easiest:** click **"Set up builder distro (beta)"** in the Environment
+    panel. It installs the official Arch WSL distribution and re-imports it under
+    the dedicated name, then installs the tools. This is best-effort and streams
+    to the log; if it fails, use the manual steps below.
+  - **Manual:** in an elevated PowerShell:
+    ```powershell
+    wsl --install -d archlinux --no-launch
+    wsl --export archlinux "$env:TEMP\arch.tar"
+    wsl --import SteamOS-NVIDIA-Builder "$env:USERPROFILE\wsl\steamos-builder" "$env:TEMP\arch.tar"
+    wsl --unregister archlinux   # optional
+    wsl -d SteamOS-NVIDIA-Builder -u root -- bash -lc "pacman -Syu --noconfirm --needed btrfs-progs rsync curl kmod zstd python binutils util-linux"
+    ```
+    The app never modifies your other distros.
 - **WSL default version not 2** → `wsl --set-default-version 2`.
 - **Low disk space** → free space to ~20 GB, or move/grow the WSL virtual disk.
 

@@ -1,0 +1,49 @@
+name: Build Windows installer
+
+# Builds a REAL Windows installer on a windows-latest runner (not cross-built).
+# - On any manual run or push to the branch: uploads the .exe as a build artifact.
+# - On a version tag (v*): also attaches the .exe to a GitHub Release.
+#
+# The installer is UNSIGNED (no code-signing certificate configured), so Windows
+# SmartScreen will warn on first run — that is expected for a hobby build.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify (typecheck · lint · test · build)
+        run: npm run verify
+      - name: Package Windows installer (NSIS)
+        run: npm run package:win
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: steamos-nvidia-usb-installer-windows
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+          if-no-files-found: error
+      - name: Attach to GitHub Release (tagged builds only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.exe
+            dist/*.blockmap
+          draft: false
+          generate_release_notes: true

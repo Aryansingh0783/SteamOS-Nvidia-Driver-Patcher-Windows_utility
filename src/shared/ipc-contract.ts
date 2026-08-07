@@ -20,6 +20,7 @@ import type {
 /** Request/response channels (renderer → main, via ipcRenderer.invoke). */
 export const IpcChannels = {
   checkEnvironment: 'env:check',
+  provisionDistro: 'env:provision',
   openWslDocs: 'env:open-docs',
   selectImage: 'image:select',
   setOptions: 'build:set-options',
@@ -83,6 +84,7 @@ export interface StartBuildInput {
  */
 export interface Api {
   checkEnvironment(): Promise<EnvironmentReport>;
+  provisionDistro(): Promise<void>;
   openWslDocs(): Promise<void>;
   selectImage(): Promise<SelectedImage | null>;
   setOptions(options: BuildOptions): Promise<void>;

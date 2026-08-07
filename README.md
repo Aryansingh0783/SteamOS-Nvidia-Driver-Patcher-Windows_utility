@@ -56,11 +56,28 @@ single RTX card are the tested path; **hybrid-graphics laptops (iGPU + RTX) may
 not work**. Upstream was verified on an RTX 5060 Ti with driver 610.43.03 on
 SteamOS 3.8.10–3.8.14.
 
+## Download the app
+
+A real Windows installer (`.exe`, NSIS) is built on a `windows-latest` runner by
+GitHub Actions:
+
+- **Tagged releases** (`v*`) attach the installer to the repo's
+  [Releases](../../releases).
+- Any run of the **Build Windows installer** workflow (Actions tab, "Run
+  workflow") uploads the `.exe` as a downloadable artifact.
+
+The installer is **unsigned**, so Windows SmartScreen will warn on first run
+(More info → Run anyway). Or build it yourself from source (below).
+
 ## Requirements
 
 - **Windows 10/11 (x64)** with **WSL2** enabled.
-- An **Arch builder distro** the app manages (`SteamOS-NVIDIA-Builder`). It is
-  isolated — the app never touches your other WSL distros.
+- An **Arch builder distro** the app manages (`SteamOS-NVIDIA-Builder`), isolated
+  from your other distros. The app can **set this up for you** — the Environment
+  panel shows a **"Set up builder distro (beta)"** button when WSL2 is present
+  but the distro is missing. (It installs the official Arch WSL distribution and
+  re-imports it under the dedicated name; manual steps are in TROUBLESHOOTING.md
+  if you prefer.)
 - **~20 GB free disk** (image copy + build cache).
 - **Administrator** rights (only for the USB flash step; the app requests
   elevation and explains why).

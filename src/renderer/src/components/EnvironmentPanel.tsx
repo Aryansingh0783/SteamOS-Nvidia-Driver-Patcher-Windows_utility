@@ -16,7 +16,9 @@ export function EnvironmentPanel(): JSX.Element {
   const env = useStore((s) => s.snapshot?.environment ?? null);
   const checkEnvironment = useStore((s) => s.checkEnvironment);
   const openWslDocs = useStore((s) => s.openWslDocs);
+  const provisionDistro = useStore((s) => s.provisionDistro);
   const [checking, setChecking] = useState(false);
+  const [setup, setSetup] = useState<'idle' | 'consent' | 'running'>('idle');
 
   const recheck = async (): Promise<void> => {
     setChecking(true);
@@ -26,6 +28,18 @@ export function EnvironmentPanel(): JSX.Element {
       setChecking(false);
     }
   };
+
+  const runProvision = async (): Promise<void> => {
+    setSetup('running');
+    try {
+      await provisionDistro();
+    } finally {
+      setSetup('idle');
+    }
+  };
+
+  const canProvision =
+    !!env && env.platform === 'win32' && env.wsl.installed && !env.wsl.builderDistroPresent;
 
   return (
     <Panel label="01 · Environment" title="Build environment (WSL2)" right={statusChip(env)}>
@@ -69,8 +83,8 @@ export function EnvironmentPanel(): JSX.Element {
         </p>
       )}
 
-      <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-        <MagneticButton onClick={recheck} disabled={checking}>
+      <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
+        <MagneticButton onClick={recheck} disabled={checking || setup === 'running'}>
           {checking ? 'Checking…' : 'Re-check'}
         </MagneticButton>
         {env && !env.wsl.installed && (
@@ -78,7 +92,43 @@ export function EnvironmentPanel(): JSX.Element {
             Install WSL2 ↗
           </MagneticButton>
         )}
+        {canProvision && setup === 'idle' && (
+          <MagneticButton className="btn-primary" onClick={() => setSetup('consent')}>
+            Set up builder distro (beta)
+          </MagneticButton>
+        )}
+        {setup === 'running' && (
+          <span className="chip working" style={{ alignSelf: 'center' }}>
+            <span className="dot" /> Provisioning… watch the log
+          </span>
+        )}
       </div>
+
+      {setup === 'consent' && (
+        <div
+          className="glass"
+          style={{ marginTop: 14, padding: 14, borderColor: 'rgb(var(--accent) / 0.4)' }}
+        >
+          <div className="label" style={{ marginBottom: 6 }}>
+            One-time builder setup
+          </div>
+          <p style={{ margin: 0, fontSize: 13, color: 'rgb(var(--muted))' }}>
+            This installs the <strong>official Arch Linux WSL distribution</strong> and re-imports it
+            under a dedicated name (<code>SteamOS-NVIDIA-Builder</code>), then installs the required
+            build tools. Your other WSL distros are not touched. It downloads several GB and can take
+            5–15 minutes; progress streams to the log below. Best-effort — if it fails, the manual
+            steps are in TROUBLESHOOTING.md.
+          </p>
+          <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+            <MagneticButton className="btn-primary" onClick={() => void runProvision()}>
+              Proceed
+            </MagneticButton>
+            <button className="btn btn-ghost" onClick={() => setSetup('idle')}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </Panel>
   );
 }

@@ -31,6 +31,7 @@ function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
 
 const api: Api = {
   checkEnvironment: () => ipcRenderer.invoke(IpcChannels.checkEnvironment) as Promise<EnvironmentReport>,
+  provisionDistro: () => ipcRenderer.invoke(IpcChannels.provisionDistro) as Promise<void>,
   openWslDocs: () => ipcRenderer.invoke(IpcChannels.openWslDocs) as Promise<void>,
   selectImage: () => ipcRenderer.invoke(IpcChannels.selectImage) as Promise<SelectedImage | null>,
   setOptions: (options: BuildOptions) =>

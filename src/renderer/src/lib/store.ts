@@ -35,6 +35,7 @@ export interface UiState {
 
   init: () => void;
   checkEnvironment: () => Promise<void>;
+  provisionDistro: () => Promise<void>;
   openWslDocs: () => Promise<void>;
   selectImage: () => Promise<void>;
   setOptions: (options: Partial<BuildOptions>) => void;
@@ -75,6 +76,10 @@ export const useStore = create<UiState>((set, get) => ({
 
   checkEnvironment: async () => {
     await api().checkEnvironment();
+  },
+
+  provisionDistro: async () => {
+    await api().provisionDistro();
   },
 
   openWslDocs: async () => {

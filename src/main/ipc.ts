@@ -27,6 +27,8 @@ export function registerIpc(orchestrator: Orchestrator, getWindow: () => Browser
 
   ipcMain.handle(IpcChannels.checkEnvironment, () => orchestrator.checkEnvironment());
 
+  ipcMain.handle(IpcChannels.provisionDistro, () => orchestrator.provisionDistro());
+
   ipcMain.handle(IpcChannels.openWslDocs, async () => {
     await shell.openExternal(WSL_DOCS_URL);
   });
