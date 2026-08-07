@@ -11,6 +11,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Publish a GitHub Release under this tag (e.g. v0.1.0). Leave empty to only upload a build artifact.'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -38,10 +43,16 @@ jobs:
             dist/*.exe
             dist/*.blockmap
           if-no-files-found: error
-      - name: Attach to GitHub Release (tagged builds only)
-        if: startsWith(github.ref, 'refs/tags/')
+      # Publishes a Release on a tag push, or on a manual run when release_tag is
+      # given. In the manual case softprops creates the tag at this run's commit
+      # using GITHUB_TOKEN (which sidesteps any restriction on pushing tags via git).
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') && inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') && inputs.release_tag || github.ref_name }}
           files: |
             dist/*.exe
             dist/*.blockmap
