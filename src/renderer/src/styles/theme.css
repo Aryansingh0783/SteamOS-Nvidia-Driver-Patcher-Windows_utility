@@ -1,0 +1,528 @@
+/* =========================================================================
+   Premium Motion System — theme tokens + primitives.
+   Palette taken from the user's reference (warm near-black + dusty rose),
+   structural HUD language from the cyber-brutalist references (monospace
+   labels, corner brackets, status readouts). One easing curve, one timing
+   family, everywhere.
+   ========================================================================= */
+
+:root {
+  /* --- brand palette (space-separated RGB channels for arbitrary opacity) --- */
+  --surface: 16 6 3; /* #100603 */
+  --surface-2: 26 12 8; /* slightly lifted ground */
+  --foreground: 244 219 216; /* #F4DBD8 */
+  --elevated: 36 17 11; /* #241711 */
+  --muted: 190 168 167; /* #BEA8A7 */
+  --accent: 192 152 145; /* #C09891 dusty rose */
+  --accent-2: 214 176 150; /* warm highlight */
+  --subtle: 154 127 121; /* #9A7F79 */
+  --line: 244 219 216;
+
+  /* --- semantic status (a disk writer needs unambiguous states) --- */
+  --ok: 126 196 138;
+  --warn: 232 184 96;
+  --danger: 232 96 84;
+
+  /* --- motion --- */
+  --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-curtain: cubic-bezier(0.76, 0, 0.24, 1);
+  --dur-micro: 320ms;
+  --dur-standard: 640ms;
+
+  /* --- type --- */
+  --font-sans:
+    'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono:
+    'JetBrains Mono', 'Cascadia Code', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  color-scheme: dark;
+}
+
+/* Optional light theme (toggle flips data-theme). Dark is the committed look. */
+:root[data-theme='light'] {
+  --surface: 252 245 243;
+  --surface-2: 255 255 255;
+  --foreground: 42 8 0;
+  --elevated: 255 255 255;
+  --muted: 119 81 68;
+  --accent: 119 81 68;
+  --accent-2: 150 96 78;
+  --subtle: 126 96 88;
+  --line: 42 8 0;
+  --ok: 46 138 74;
+  --warn: 176 120 20;
+  --danger: 190 48 40;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: rgb(var(--foreground));
+  background: rgb(var(--surface));
+  overflow: hidden; /* the app column scrolls, not the body */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ------------------------------------------------------------- typography */
+
+.mono {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum' 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgb(var(--muted));
+}
+
+.shimmer {
+  background: linear-gradient(
+    100deg,
+    rgb(var(--foreground)) 20%,
+    rgb(var(--accent)) 40%,
+    rgb(var(--accent-2)) 55%,
+    rgb(var(--foreground)) 75%
+  );
+  background-size: 220% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: shimmer 8s linear infinite;
+}
+@keyframes shimmer {
+  to {
+    background-position: 220% center;
+  }
+}
+
+/* --------------------------------------------------------------- surfaces */
+
+.glass {
+  background: linear-gradient(
+    140deg,
+    rgb(var(--elevated) / 0.72) 0%,
+    rgb(var(--elevated) / 0.4) 45%,
+    rgb(var(--elevated) / 0.62) 100%
+  );
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  border: 1px solid rgb(var(--line) / 0.12);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 -1px 0 rgb(var(--line) / 0.06),
+    0 24px 60px -32px rgb(var(--accent) / 0.4);
+  border-radius: 16px;
+}
+.glass-strong {
+  background: linear-gradient(
+    140deg,
+    rgb(var(--elevated) / 0.92) 0%,
+    rgb(var(--elevated) / 0.7) 100%
+  );
+  backdrop-filter: blur(28px) saturate(185%);
+  -webkit-backdrop-filter: blur(28px) saturate(185%);
+  border: 1px solid rgb(var(--line) / 0.14);
+  border-radius: 16px;
+}
+
+/* corner brackets — the HUD signature from the references */
+.bracketed {
+  position: relative;
+}
+.bracketed::before,
+.bracketed::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgb(var(--accent) / 0.55);
+  pointer-events: none;
+}
+.bracketed::before {
+  top: 8px;
+  left: 8px;
+  border-right: none;
+  border-bottom: none;
+}
+.bracketed::after {
+  bottom: 8px;
+  right: 8px;
+  border-left: none;
+  border-top: none;
+}
+
+/* --------------------------------------------------------------- glow card */
+
+.glow-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.glow-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 500ms var(--ease-premium);
+  background: radial-gradient(
+    340px circle at var(--mx, 50%) var(--my, 50%),
+    rgb(var(--accent) / 0.2),
+    transparent 65%
+  );
+}
+.glow-card:hover::before,
+.glow-card:focus-within::before {
+  opacity: 1;
+}
+
+/* --------------------------------------------------------------- buttons */
+
+.btn {
+  position: relative;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: 1px solid rgb(var(--line) / 0.16);
+  background: rgb(var(--elevated) / 0.6);
+  color: rgb(var(--foreground));
+  cursor: pointer;
+  transition:
+    transform var(--dur-standard) var(--ease-premium),
+    box-shadow var(--dur-standard) var(--ease-premium),
+    background var(--dur-micro) var(--ease-premium),
+    border-color var(--dur-micro) var(--ease-premium);
+}
+.btn:hover:not(:disabled) {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 40px -22px rgb(var(--accent) / 0.7);
+  border-color: rgb(var(--accent) / 0.5);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: linear-gradient(120deg, rgb(var(--accent) / 0.95), rgb(var(--accent-2) / 0.9));
+  color: rgb(16 6 3);
+  border: none;
+  font-weight: 600;
+}
+.btn-danger {
+  background: linear-gradient(120deg, rgb(var(--danger) / 0.95), rgb(232 128 96 / 0.9));
+  color: #1a0603;
+  border: none;
+  font-weight: 700;
+}
+.btn-ghost {
+  background: transparent;
+}
+
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  transform: scale(0);
+  background: currentColor;
+  opacity: 0.4;
+  pointer-events: none;
+  animation: ripple 600ms var(--ease-premium);
+}
+@keyframes ripple {
+  to {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+
+/* animated underline links */
+.link {
+  position: relative;
+  color: rgb(var(--accent));
+  text-decoration: none;
+  cursor: pointer;
+}
+.link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  width: 100%;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 450ms var(--ease-premium);
+}
+.link:hover::after,
+.link:focus-visible::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+/* --------------------------------------------------------------- meters */
+
+.meter {
+  height: 8px;
+  border-radius: 999px;
+  background: rgb(var(--line) / 0.1);
+  overflow: hidden;
+}
+.meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgb(var(--accent)), rgb(var(--accent-2)));
+  transition: width var(--dur-standard) var(--ease-premium);
+}
+.meter.ok > span {
+  background: linear-gradient(90deg, rgb(var(--ok)), rgb(150 214 160));
+}
+.meter.warn > span {
+  background: linear-gradient(90deg, rgb(var(--warn)), rgb(244 208 130));
+}
+.meter.danger > span {
+  background: linear-gradient(90deg, rgb(var(--danger)), rgb(244 140 110));
+}
+
+/* --------------------------------------------------------- status chips */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgb(var(--line) / 0.16);
+  color: rgb(var(--muted));
+}
+.chip .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgb(var(--subtle));
+}
+.chip.ok {
+  color: rgb(var(--ok));
+  border-color: rgb(var(--ok) / 0.4);
+}
+.chip.ok .dot {
+  background: rgb(var(--ok));
+}
+.chip.warn {
+  color: rgb(var(--warn));
+  border-color: rgb(var(--warn) / 0.4);
+}
+.chip.warn .dot {
+  background: rgb(var(--warn));
+}
+.chip.danger {
+  color: rgb(var(--danger));
+  border-color: rgb(var(--danger) / 0.45);
+}
+.chip.danger .dot {
+  background: rgb(var(--danger));
+}
+.chip.working {
+  color: rgb(var(--accent));
+  border-color: rgb(var(--accent) / 0.4);
+}
+.chip.working .dot {
+  background: rgb(var(--accent));
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* --------------------------------------------------------- ambient layers */
+
+.ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.5;
+}
+.blob.a {
+  width: 46vw;
+  height: 46vw;
+  left: -10vw;
+  top: -12vw;
+  background: radial-gradient(circle, rgb(var(--accent) / 0.5), transparent 60%);
+  animation: float1 22s ease-in-out infinite;
+}
+.blob.b {
+  width: 40vw;
+  height: 40vw;
+  right: -8vw;
+  bottom: -10vw;
+  background: radial-gradient(circle, rgb(120 70 120 / 0.35), transparent 60%);
+  animation: float2 26s ease-in-out infinite;
+}
+@keyframes float1 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(3%, 4%) scale(1.05);
+  }
+}
+@keyframes float2 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1.03);
+  }
+  50% {
+    transform: translate(-4%, -3%) scale(0.97);
+  }
+}
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(var(--line) / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--line) / 0.05) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(120% 70% at 50% 0%, black, transparent 75%);
+  -webkit-mask-image: radial-gradient(120% 70% at 50% 0%, black, transparent 75%);
+}
+.grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.mouse-glow {
+  position: fixed;
+  width: 640px;
+  height: 640px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(var(--accent) / 0.16), transparent 60%);
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+  transform: translate(-50%, -50%);
+  will-change: left, top;
+}
+
+/* --------------------------------------------------------------- log panel */
+
+.log {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  background: rgb(0 0 0 / 0.35);
+  border: 1px solid rgb(var(--line) / 0.1);
+  border-radius: 12px;
+  padding: 12px 14px;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+.log .ln {
+  white-space: pre;
+  color: rgb(var(--muted));
+}
+.log .ln.warn {
+  color: rgb(var(--warn));
+}
+.log .ln.error {
+  color: rgb(var(--danger));
+}
+.log .ln .t {
+  color: rgb(var(--subtle));
+  margin-right: 8px;
+}
+
+/* --------------------------------------------------------------- modal */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+  padding: 24px;
+}
+
+/* --------------------------------------------------------------- utility */
+
+.hairline {
+  height: 1px;
+  background: rgb(var(--line) / 0.1);
+  border: none;
+}
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.scroll-y {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--accent) / 0.4) transparent;
+}
+.scroll-y::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll-y::-webkit-scrollbar-thumb {
+  background: rgb(var(--accent) / 0.35);
+  border-radius: 8px;
+}
+
+/* =========================== reduced motion =========================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .blob,
+  .mouse-glow,
+  .grain {
+    display: none !important;
+  }
+}
