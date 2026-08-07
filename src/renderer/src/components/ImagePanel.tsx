@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { formatBytes } from '@shared/format.js';
 import { useStore } from '../lib/store.js';
-import { SUPPORT_MATRIX, HARDWARE_REQUIREMENTS } from '../constants/hardware.js';
+import { SUPPORT_MATRIX, HARDWARE_REQUIREMENTS, HYBRID_LAPTOP } from '../constants/hardware.js';
 import { Panel, Readout, Chip } from './ui.js';
 import { MagneticButton } from './motion/MagneticButton.js';
 
@@ -129,6 +129,29 @@ export function ImagePanel(): JSX.Element {
               </li>
             ))}
           </ul>
+
+          <div
+            style={{
+              marginTop: 14,
+              padding: 12,
+              borderRadius: 10,
+              border: '1px solid rgb(var(--warn) / 0.35)',
+              background: 'rgb(var(--warn) / 0.06)',
+            }}
+          >
+            <div className="label" style={{ color: 'rgb(var(--warn))', marginBottom: 6 }}>
+              {HYBRID_LAPTOP.title}
+            </div>
+            <p style={{ margin: 0, fontSize: 12, color: 'rgb(var(--muted))' }}>{HYBRID_LAPTOP.summary}</p>
+            <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: 'rgb(var(--muted))', fontSize: 12 }}>
+              {HYBRID_LAPTOP.steps.map((s, i) => (
+                <li key={i} style={{ marginBottom: 4 }}>
+                  {s}
+                </li>
+              ))}
+            </ul>
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: 'rgb(var(--warn))' }}>{HYBRID_LAPTOP.honest}</p>
+          </div>
         </div>
       )}
     </Panel>

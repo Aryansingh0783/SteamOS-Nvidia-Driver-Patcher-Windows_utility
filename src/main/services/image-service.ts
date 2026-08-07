@@ -11,9 +11,12 @@
  * The build script itself is run **unmodified**; we only stream and interpret
  * its output.
  */
+import { createReadStream, createWriteStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
 import type { RunOptions } from './process-runner.js';
 import { runInDistro, bashScriptArgs } from './wsl.js';
 import { buildScriptInvocation, buildScriptArgs } from '@shared/command.js';
+import { windowsPathToWslPath } from '@shared/command.js';
 import { runProcess } from './process-runner.js';
 import { matchBuildStage } from '@shared/build-progress.js';
 import type { BuildOptions, ProcessResult, SteamosImageInfo } from '@shared/types.js';
@@ -79,6 +82,86 @@ export async function copyImageIntoDistro(
     throw new Error(`Copying the image into the build environment failed: ${detail}`);
   }
   onProgress?.(1);
+}
+
+/** Build a `\\host\distro\...` UNC path for a Linux path inside the distro. */
+function wslUncPath(host: string, distro: string, linuxPath: string): string {
+  const rel = linuxPath.replace(/^\/+/, '').replace(/\//g, '\\');
+  return `\\\\${host}\\${distro}\\${rel}`;
+}
+
+async function streamCopy(
+  src: string,
+  dest: string,
+  totalBytes: number,
+  onProgress?: (fraction: number) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const rs = createReadStream(src, { highWaterMark: 4 * 1024 * 1024 });
+  let copied = 0;
+  rs.on('data', (chunk: Buffer | string) => {
+    copied += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;
+    if (totalBytes > 0) onProgress?.(Math.min(0.99, copied / totalBytes));
+  });
+  const ws = createWriteStream(dest);
+  await pipeline(rs, ws, signal ? { signal } : {});
+}
+
+/**
+ * Copy a Windows-side image file into the distro, working for ANY source drive
+ * (including drives WSL does not auto-mount, e.g. I:/external/USB). It writes
+ * through the distro's 9p share (`\\wsl.localhost\<distro>\...`) from the
+ * Windows side — where every drive is readable — instead of relying on
+ * `/mnt/<letter>` inside WSL. Falls back to the in-WSL copy (which needs the
+ * source drive mounted) if the share is unavailable.
+ */
+export async function copyWindowsFileIntoDistro(
+  distro: string,
+  windowsSrcPath: string,
+  destLinuxPath: string,
+  totalBytes: number,
+  onProgress?: (fraction: number) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  // Ensure the distro is running and the destination directory exists.
+  const destDir = destLinuxPath.replace(/\/[^/]*$/, '') || '/';
+  await runInDistro(distro, 'root', ['mkdir', '-p', destDir]);
+
+  const hosts = ['wsl.localhost', 'wsl$'];
+  let lastErr: unknown;
+  for (const host of hosts) {
+    if (signal?.aborted) throw new Error('Image copy cancelled.');
+    const uncDest = wslUncPath(host, distro, destLinuxPath);
+    try {
+      onProgress?.(0.02);
+      await streamCopy(windowsSrcPath, uncDest, totalBytes, onProgress, signal);
+      // Verify the distro sees the full file.
+      const st = await runInDistro(distro, 'root', ['stat', '-c', '%s', destLinuxPath]);
+      const got = Number.parseInt(st.stdout.trim(), 10);
+      if (totalBytes > 0 && got !== totalBytes) {
+        throw new Error(`size mismatch after copy (expected ${totalBytes}, got ${got})`);
+      }
+      onProgress?.(1);
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (signal?.aborted) throw err instanceof Error ? err : new Error(String(err));
+    }
+  }
+
+  // Fallback: in-WSL copy (works when the source drive IS mounted, e.g. C:).
+  try {
+    const srcLinux = windowsPathToWslPath(windowsSrcPath);
+    await copyImageIntoDistro(distro, srcLinux, destLinuxPath, totalBytes, onProgress, signal);
+    return;
+  } catch (fallbackErr) {
+    const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+    const fmsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+    throw new Error(
+      `Could not copy the image into the build environment. Tried the WSL share ` +
+        `(\\\\wsl.localhost\\${distro}): ${msg}. In-WSL fallback: ${fmsg}`,
+    );
+  }
 }
 
 /**

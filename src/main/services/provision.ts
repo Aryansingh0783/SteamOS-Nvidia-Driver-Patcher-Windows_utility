@@ -10,11 +10,38 @@ import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { runProcess } from './process-runner.js';
-import { buildProvisionSteps } from '@shared/provision.js';
+import { runInDistro, bashScriptArgs } from './wsl.js';
+import { buildProvisionSteps, PROVISION_BASH, PROVISION_TOOLS } from '@shared/provision.js';
 
 export interface ProvisionHooks {
   onLog?: (message: string) => void;
   signal?: AbortSignal;
+}
+
+/**
+ * (Re)install the required tools into an EXISTING builder distro — used when the
+ * distro is present but the capability probe found tools missing (commonly
+ * because a first-run pacman failed on keyring/signature errors). Initialises
+ * the pacman keyring first, which is the usual cause of the failure.
+ */
+export async function installBuilderTools(distro: string, hooks: ProvisionHooks = {}): Promise<void> {
+  if (process.platform !== 'win32') {
+    throw new Error('Installing WSL build tools is only supported on Windows.');
+  }
+  hooks.onLog?.(
+    `Installing required tools into ${distro} (${PROVISION_TOOLS.join(', ')}). This can take a few minutes…`,
+  );
+  const result = await runInDistro(distro, 'root', bashScriptArgs(PROVISION_BASH), {
+    ...(hooks.signal ? { signal: hooks.signal } : {}),
+    onStdout: (l) => hooks.onLog?.(l),
+    onStderr: (l) => hooks.onLog?.(l),
+    timeoutMs: 20 * 60 * 1000,
+  });
+  if (result.cancelled) throw new Error('Tool installation cancelled.');
+  if (result.exitCode !== 0) {
+    const tail = (result.stderr.trim() || result.stdout.trim()).split('\n').slice(-5).join(' ');
+    throw new Error(`Installing build tools into the distro failed: ${tail}`);
+  }
 }
 
 /** Source disclosed to the user before provisioning runs. */

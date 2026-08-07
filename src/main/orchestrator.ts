@@ -33,9 +33,10 @@ import { checkEnvironment } from './services/environment.js';
 import { BUILDER_DISTRO, probeCapabilities, runInDistro } from './services/wsl.js';
 import { scanDisks } from './services/usb-service.js';
 import { flashImage, FlashCancelledError } from './services/flash-service.js';
-import { provisionBuilderDistro } from './services/provision.js';
+import { provisionBuilderDistro, installBuilderTools } from './services/provision.js';
 import {
   copyImageIntoDistro,
+  copyWindowsFileIntoDistro,
   deriveOutputPath,
   inspectSteamosImage,
   runBuildScript,
@@ -270,15 +271,16 @@ export class Orchestrator {
         );
       }
 
-      // Prepare workspace + copy the image into the distro (ext4).
+      // Prepare workspace + copy the image into the distro (ext4). This copies
+      // from the Windows side so it works for ANY source drive (incl. drives WSL
+      // does not auto-mount, e.g. I:/external).
       this.setState('PREPARING_WORKSPACE');
-      const srcLinux = windowsPathToWslPath(imageWindowsPath);
       const workLinux = '/root/.steamos-nvidia-work';
       const inputLinux = `${workLinux}/input/${basename(imageWindowsPath)}`;
-      this.logger.info(`Copying image into ${this.distro}: ${srcLinux} -> ${inputLinux}`);
-      await copyImageIntoDistro(
+      this.logger.info(`Copying image into ${this.distro}: ${imageWindowsPath} -> ${inputLinux}`);
+      await copyWindowsFileIntoDistro(
         this.distro,
-        srcLinux,
+        imageWindowsPath,
         inputLinux,
         sizeBytes,
         (f) =>
@@ -293,9 +295,30 @@ export class Orchestrator {
 
       // Probe WSL capabilities before committing to a 20-minute build.
       this.setState('PREPARING_WSL');
-      const caps = await probeCapabilities(this.distro);
+      let caps = await probeCapabilities(this.distro);
       if (caps.missingTools.length > 0) {
-        throw new Error(`Builder distro is missing required tools: ${caps.missingTools.join(', ')}`);
+        // Commonly a first-run pacman failed on keyring/signature errors. Try to
+        // install the missing tools (with keyring init) instead of failing.
+        this.logger.warn(
+          `Builder distro is missing tools (${caps.missingTools.join(', ')}). Installing them now…`,
+        );
+        try {
+          await installBuilderTools(this.distro, {
+            onLog: (m: string) => this.logger.info(m),
+            ...(signal ? { signal } : {}),
+          });
+        } catch (e) {
+          this.logger.error(e instanceof Error ? e.message : String(e));
+        }
+        caps = await probeCapabilities(this.distro);
+      }
+      if (caps.missingTools.length > 0) {
+        throw new Error(
+          `Builder distro is still missing required tools: ${caps.missingTools.join(', ')}. ` +
+            'Open the distro and run: pacman-key --init && pacman-key --populate archlinux && ' +
+            'pacman -Sy --noconfirm archlinux-keyring && pacman -S --noconfirm --needed ' +
+            'btrfs-progs rsync python binutils util-linux kmod zstd curl',
+        );
       }
       if (!caps.overlayfsSupport || !caps.btrfsSupport || !caps.loopPartitionSupport) {
         const missing = [

@@ -18,6 +18,31 @@
 - An **RTX 20-series or newer** GPU (see the support matrix in the README).
   Desktops with a single RTX card are the clean path; hybrid laptops may fail.
 
+## Intel + NVIDIA (Optimus) laptops — the hard case
+
+Hybrid laptops are the least reliable target and upstream flags them as "results
+vary". The Intel iGPU usually drives the internal panel while the NVIDIA GPU is a
+render-offload device, but SteamOS/gamescope expect a single primary GPU — so the
+internal screen can stay black even though the driver is installed correctly.
+
+**This tool does not change your laptop's display wiring.** To make it dependable:
+
+- **Best fix — BIOS/UEFI:** set graphics to **"Discrete / dGPU only"** or enable
+  the **MUX** so the NVIDIA drives the internal panel. Many gaming laptops
+  (Lenovo Legion, ASUS ROG, MSI, etc.) have this. It turns your laptop into the
+  supported single-NVIDIA path.
+- **No MUX / dGPU-only option:** connect an **external monitor to a port wired
+  directly to the NVIDIA GPU** (often HDMI or USB-C) — the most reliable output.
+- **Secure Boot must be OFF** (the NVIDIA module is unsigned).
+- **Black internal screen but external works** ⇒ your panel is Intel-wired with
+  no MUX; use the BIOS dGPU-only option or an NVIDIA-wired port.
+- **Diagnose:** from a black screen press `Ctrl+Alt+F3`, log in as `deck`, run
+  `nvidia-smi` (is the driver loaded?), then `steamos-session-select plasma`.
+
+On a no-MUX Optimus laptop, SteamOS may still not light the internal panel
+through NVIDIA regardless of this tool. The BIOS dGPU/MUX route (or an
+NVIDIA-wired external monitor) is the path that works.
+
 ## Environment panel is *Blocked*
 
 - **WSL2 not installed** → run `wsl --install` in an elevated PowerShell, reboot,
@@ -34,9 +59,11 @@
     wsl --export archlinux "$env:TEMP\arch.tar"
     wsl --import SteamOS-NVIDIA-Builder "$env:USERPROFILE\wsl\steamos-builder" "$env:TEMP\arch.tar"
     wsl --unregister archlinux   # optional
-    wsl -d SteamOS-NVIDIA-Builder -u root -- bash -lc "pacman -Syu --noconfirm --needed btrfs-progs rsync curl kmod zstd python binutils util-linux"
+    wsl -d SteamOS-NVIDIA-Builder -u root -- bash -lc "pacman-key --init && pacman-key --populate archlinux && pacman -Sy --noconfirm archlinux-keyring && pacman -S --noconfirm --needed btrfs-progs rsync curl kmod zstd python binutils util-linux"
     ```
-    The app never modifies your other distros.
+    The `pacman-key` init is important — a fresh Arch WSL fails package installs
+    with signature/keyring errors without it (a common cause of "Builder distro
+    is missing required tools"). The app never modifies your other distros.
 - **WSL default version not 2** → `wsl --set-default-version 2`.
 - **Low disk space** → free space to ~20 GB, or move/grow the WSL virtual disk.
 
