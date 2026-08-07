@@ -275,7 +275,7 @@ export class Orchestrator {
       const srcLinux = windowsPathToWslPath(imageWindowsPath);
       const workLinux = '/root/.steamos-nvidia-work';
       const inputLinux = `${workLinux}/input/${basename(imageWindowsPath)}`;
-      this.logger.info(`Copying image into ${this.distro}: ${inputLinux}`);
+      this.logger.info(`Copying image into ${this.distro}: ${srcLinux} -> ${inputLinux}`);
       await copyImageIntoDistro(
         this.distro,
         srcLinux,

@@ -12,7 +12,7 @@
  * its output.
  */
 import type { RunOptions } from './process-runner.js';
-import { runInDistro } from './wsl.js';
+import { runInDistro, bashScriptArgs } from './wsl.js';
 import { buildScriptInvocation, buildScriptArgs } from '@shared/command.js';
 import { runProcess } from './process-runner.js';
 import { matchBuildStage } from '@shared/build-progress.js';
@@ -24,35 +24,59 @@ export function deriveOutputPath(inputLinuxPath: string): string {
   return inputLinuxPath.replace(/\.img$/i, '-nvidia-usbinstall.img');
 }
 
-/** Copy the Windows image into the distro with real byte-level progress. */
+/**
+ * Copy an image across the WSL boundary. Pre-checks the source and free space
+ * with clear, actionable errors, then copies quietly (dd errors are captured and
+ * re-surfaced on stderr). $1 = source, $2 = destination.
+ */
 const COPY_SCRIPT = [
-  'set -euo pipefail',
-  'mkdir -p "$(dirname "$2")"',
-  // tr converts dd's \r progress updates into newline-delimited lines we can parse
-  "dd if=\"$1\" of=\"$2\" bs=4M conv=fsync status=progress 2>&1 | tr '\\r' '\\n'",
+  'set -uo pipefail',
+  'SRC="$1"; DEST="$2"',
+  'if [ ! -e "$SRC" ]; then',
+  '  echo "The image is not visible inside WSL at: $SRC" >&2',
+  '  echo "If your .img is not on the C: drive (e.g. on D:, or an external/USB drive), WSL may not auto-mount it. Move the .img into a folder on C: and try again." >&2',
+  '  exit 3',
+  'fi',
+  'if [ ! -r "$SRC" ]; then echo "The image exists but is not readable inside WSL: $SRC" >&2; exit 3; fi',
+  'DESTDIR="$(dirname "$DEST")"',
+  'mkdir -p "$DESTDIR" || { echo "Could not create the work directory inside WSL: $DESTDIR" >&2; exit 4; }',
+  'SIZE="$(stat -c %s "$SRC" 2>/dev/null || echo 0)"',
+  'AVAIL="$(df -B1 --output=avail "$DESTDIR" 2>/dev/null | tail -1 | tr -d " ")"',
+  'if [ -n "${AVAIL:-}" ] && [ "${SIZE:-0}" -gt 0 ] && [ "$AVAIL" -lt "$SIZE" ]; then',
+  '  echo "Not enough space in the WSL disk: the image is $SIZE bytes but only $AVAIL bytes are free. Free space or grow the WSL virtual disk." >&2',
+  '  exit 5',
+  'fi',
+  'if ! dd if="$SRC" of="$DEST" bs=4M conv=fsync status=none 2>/tmp/steamos-dd.err; then',
+  '  echo "Copy failed while writing the image into WSL:" >&2',
+  '  cat /tmp/steamos-dd.err >&2 2>/dev/null || true',
+  '  exit 6',
+  'fi',
+  'echo "COPIED ${SIZE:-0}"',
 ].join('\n');
 
 export async function copyImageIntoDistro(
   distro: string,
   srcLinuxPath: string,
   destLinuxPath: string,
-  totalBytes: number,
+  _totalBytes: number,
   onProgress?: (fraction: number) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const opts: RunOptions = {
-    ...(signal ? { signal } : {}),
-    onStdout: (line) => {
-      const m = /^(\d+)\s+bytes/.exec(line.trim());
-      if (m && totalBytes > 0) {
-        onProgress?.(Math.min(1, Number.parseInt(m[1], 10) / totalBytes));
-      }
-    },
-  };
-  const result = await runInDistro(distro, 'root', ['bash', '-c', COPY_SCRIPT, 'copy', srcLinuxPath, destLinuxPath], opts);
+  onProgress?.(0.1);
+  const opts: RunOptions = { ...(signal ? { signal } : {}) };
+  const result = await runInDistro(
+    distro,
+    'root',
+    bashScriptArgs(COPY_SCRIPT, [srcLinuxPath, destLinuxPath]),
+    opts,
+  );
   if (result.cancelled) throw new Error('Image copy cancelled.');
   if (result.exitCode !== 0) {
-    throw new Error(`Copying the image into the build environment failed: ${result.stderr.trim()}`);
+    const detail =
+      result.stderr.trim() ||
+      result.stdout.trim().split('\n').slice(-6).join('\n') ||
+      `exit code ${String(result.exitCode)}`;
+    throw new Error(`Copying the image into the build environment failed: ${detail}`);
   }
   onProgress?.(1);
 }
@@ -109,15 +133,10 @@ export async function inspectSteamosImage(
   linuxImagePath: string,
   sizeBytes: number,
 ): Promise<SteamosImageInfo> {
-  const result = await runInDistro(distro, 'root', [
-    'bash',
-    '-c',
-    INSPECT_SCRIPT,
-    'inspect',
-    linuxImagePath,
-  ]);
+  const result = await runInDistro(distro, 'root', bashScriptArgs(INSPECT_SCRIPT, [linuxImagePath]));
   if (result.exitCode !== 0) {
-    throw new Error(`Could not inspect the image (loop-mount failed): ${result.stderr.trim()}`);
+    const detail = result.stderr.trim() || result.stdout.trim() || `exit code ${String(result.exitCode)}`;
+    throw new Error(`Could not inspect the image (loop-mount failed): ${detail}`);
   }
   const jsonLine = result.stdout
     .trim()

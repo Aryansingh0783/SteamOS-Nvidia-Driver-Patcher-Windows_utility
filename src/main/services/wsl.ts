@@ -41,6 +41,26 @@ export function runWsl(args: string[], options: RunOptions = {}): Promise<Proces
   return runProcess('wsl.exe', args, { ...options, env: wslEnv() });
 }
 
+/**
+ * Build argv that runs a (possibly multi-line) bash script inside the distro
+ * WITHOUT exposing its newlines to wsl.exe's argument parser — the outer
+ * command is a single line that base64-decodes the real script and runs it with
+ * `scriptArgs` as $1, $2, …. Newlines/quotes in a script argument can be
+ * mangled when relayed through wsl.exe, so everything non-trivial goes through
+ * here.
+ */
+export function bashScriptArgs(scriptText: string, scriptArgs: string[] = []): string[] {
+  const b64 = Buffer.from(scriptText, 'utf8').toString('base64');
+  return [
+    'bash',
+    '-c',
+    'printf %s "$1" | base64 -d | bash -s -- "${@:2}"',
+    'steamos',
+    b64,
+    ...scriptArgs,
+  ];
+}
+
 /** Run a program inside a distro as a user (argv, no shell). */
 export function runInDistro(
   distro: string,
