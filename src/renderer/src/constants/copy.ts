@@ -5,7 +5,7 @@
 export const APP = {
   name: 'SteamOS NVIDIA USB Installer',
   tagline: 'Real SteamOS on RTX hardware',
-  version: '0.1.0',
+  version: '0.1.1',
   headline: 'Build a bootable SteamOS USB with NVIDIA drivers',
   sub: 'Turns an official SteamOS recovery image into a one-click USB installer with the NVIDIA open (RTX) driver baked in. The original image is never modified.',
 };

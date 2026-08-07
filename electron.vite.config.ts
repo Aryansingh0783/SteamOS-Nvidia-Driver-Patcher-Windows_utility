@@ -20,6 +20,9 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: { index: resolve('src/preload/index.ts') },
+        // A sandboxed preload must be CommonJS. The package is ESM ("type":
+        // "module"), so emit a .cjs file to force CJS regardless of that.
+        output: { format: 'cjs', entryFileNames: '[name].cjs' },
       },
     },
   },
