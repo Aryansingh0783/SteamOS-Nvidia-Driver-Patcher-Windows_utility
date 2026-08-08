@@ -1,0 +1,27 @@
+appId: com.steamos-nvidia.usb-installer
+productName: SteamOS NVIDIA USB Installer
+copyright: MIT-licensed. Not affiliated with Valve or NVIDIA.
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+  - package.json
+extraResources:
+  # The upstream Bash workflow is shipped verbatim and executed unmodified in WSL.
+  - from: resources/steamos-nvidia-installer.sh
+    to: steamos-nvidia-installer.sh
+  - from: resources/UPSTREAM-LICENSE
+    to: UPSTREAM-LICENSE
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # A raw physical-disk write (flashing) requires Administrator.
+  requestedExecutionLevel: requireAdministrator
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false

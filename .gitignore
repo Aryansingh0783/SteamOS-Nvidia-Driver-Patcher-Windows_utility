@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+
+# build output
+out/
+dist/
+dist-electron/
+coverage/
+*.tsbuildinfo
+
+# app runtime workspace (never commit build caches or images)
+.steamos-work/
+*.img
+*.img.bz2
+*.part
+
+# logs
+*.log
+npm-debug.log*
+
+# editor / os
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/

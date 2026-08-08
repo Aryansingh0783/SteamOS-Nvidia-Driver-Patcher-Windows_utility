@@ -1,0 +1,73 @@
+name: Build Windows installer
+
+# Builds a REAL Windows installer on a windows-latest runner (not cross-built).
+# - On any manual run or push to the branch: uploads the .exe as a build artifact.
+# - On a version tag (v*): also attaches the .exe to a GitHub Release.
+#
+# The installer is UNSIGNED (no code-signing certificate configured), so Windows
+# SmartScreen will warn on first run — that is expected for a hobby build.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Publish a GitHub Release under this tag (e.g. v0.1.0). Leave empty to only upload a build artifact.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify (typecheck · lint · test · build)
+        run: npm run verify
+      - name: Package Windows installer (NSIS)
+        run: npm run package:win
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: steamos-nvidia-usb-installer-windows
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+          if-no-files-found: error
+      # Publishes a Release on a tag push, or on a manual run when release_tag is
+      # given. In the manual case softprops creates the tag at this run's commit
+      # using GITHUB_TOKEN (which sidesteps any restriction on pushing tags via git).
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') && inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') && inputs.release_tag || github.ref_name }}
+          files: |
+            dist/*.exe
+            dist/*.blockmap
+          draft: false
+          generate_release_notes: true
+          body: |
+            **Windows installer** for the SteamOS NVIDIA USB Installer.
+
+            Download `SteamOS.NVIDIA.USB.Installer.Setup.<version>.exe` below. It is
+            **unsigned** — Windows SmartScreen will warn on first run (More info →
+            Run anyway).
+
+            Requirements & setup: see the [README](https://github.com/Aryansingh0783/SteamOS-Nvidia-Driver-Patcher-Windows_utility#readme)
+            and [TROUBLESHOOTING](https://github.com/Aryansingh0783/SteamOS-Nvidia-Driver-Patcher-Windows_utility/blob/main/TROUBLESHOOTING.md)
+            (WSL2 + the in-app "Set up builder distro" button; a decompressed SteamOS
+            recovery `.img`; a spare ≥16 GB USB; RTX 20-series or newer; Secure Boot off).
+
+            ---
