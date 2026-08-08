@@ -58,13 +58,15 @@ SteamOS 3.8.10–3.8.14.
 
 ## Download the app
 
-A real Windows installer (`.exe`, NSIS) is built on a `windows-latest` runner by
-GitHub Actions:
+[![Latest release](https://img.shields.io/github/v/release/Aryansingh0783/SteamOS-Nvidia-Driver-Patcher-Windows_utility?label=latest%20release)](https://github.com/Aryansingh0783/SteamOS-Nvidia-Driver-Patcher-Windows_utility/releases/latest)
 
-- **Tagged releases** (`v*`) attach the installer to the repo's
-  [Releases](../../releases).
-- Any run of the **Build Windows installer** workflow (Actions tab, "Run
-  workflow") uploads the `.exe` as a downloadable artifact.
+**➡️ [Download the latest Windows installer (.exe)](https://github.com/Aryansingh0783/SteamOS-Nvidia-Driver-Patcher-Windows_utility/releases/latest)**
+
+A real Windows installer (`.exe`, NSIS) is built on a `windows-latest` runner by
+GitHub Actions and attached to the repo's
+[Releases](https://github.com/Aryansingh0783/SteamOS-Nvidia-Driver-Patcher-Windows_utility/releases).
+The **Actions → Build Windows installer** workflow can also be run manually to
+produce a `.exe` artifact.
 
 The installer is **unsigned**, so Windows SmartScreen will warn on first run
 (More info → Run anyway). Or build it yourself from source (below).

@@ -58,3 +58,16 @@ jobs:
             dist/*.blockmap
           draft: false
           generate_release_notes: true
+          body: |
+            **Windows installer** for the SteamOS NVIDIA USB Installer.
+
+            Download `SteamOS.NVIDIA.USB.Installer.Setup.<version>.exe` below. It is
+            **unsigned** — Windows SmartScreen will warn on first run (More info →
+            Run anyway).
+
+            Requirements & setup: see the [README](https://github.com/Aryansingh0783/SteamOS-Nvidia-Driver-Patcher-Windows_utility#readme)
+            and [TROUBLESHOOTING](https://github.com/Aryansingh0783/SteamOS-Nvidia-Driver-Patcher-Windows_utility/blob/main/TROUBLESHOOTING.md)
+            (WSL2 + the in-app "Set up builder distro" button; a decompressed SteamOS
+            recovery `.img`; a spare ≥16 GB USB; RTX 20-series or newer; Secure Boot off).
+
+            ---
