@@ -69,6 +69,23 @@ NVIDIA-wired external monitor) is the path that works.
 
 ## Build fails
 
+- **"Your WSL2 kernel can't mount SteamOS's /home partition … casefold …
+  CONFIG_UNICODE"** or a raw `mount: … /home: wrong fs type, bad superblock …
+  missing codepage or helper program` — SteamOS's `/home` is **ext4 with
+  casefold** (case-insensitive), which needs `CONFIG_UNICODE` in the WSL2 kernel.
+  Many WSL2 kernels don't have it, so the mount fails.
+  - **Try first:** update the kernel — `wsl --update` then `wsl --shutdown`,
+    reopen, Build again. A newer Microsoft kernel may include it.
+  - **If it still fails:** you need a WSL2 kernel built with `CONFIG_UNICODE=y`.
+    Build one from [microsoft/WSL2-Linux-Kernel](https://github.com/microsoft/WSL2-Linux-Kernel)
+    with that option (and casefold/ext4 encryption), place the `bzImage`
+    somewhere, and point `%UserProfile%\.wslconfig` at it:
+    ```
+    [wsl2]
+    kernel=C:\\path\\to\\bzImage
+    ```
+    then `wsl --shutdown` and retry. This is an advanced step and the one hard
+    kernel-feature requirement the app can't provide for you.
 - **"This WSL kernel lacks: loop partition scanning / overlayfs / btrfs"** — some
   WSL2 kernels lack loop `max_part` or filesystem support. Update WSL
   (`wsl --update`), and ensure the builder distro can `modprobe btrfs`. This is

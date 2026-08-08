@@ -147,6 +147,8 @@ export interface CapabilityProbe {
   loopPartitionSupport: boolean;
   overlayfsSupport: boolean;
   btrfsSupport: boolean;
+  /** ext4 casefold (needs CONFIG_UNICODE) — SteamOS /home requires it to mount. */
+  casefoldSupport: boolean;
   notes: string[];
 }
 
@@ -187,5 +189,26 @@ export async function probeCapabilities(distro: string): Promise<CapabilityProbe
   ]);
   const btrfsSupport = btrfs.stdout.trim().endsWith('yes');
 
-  return { missingTools, loopPartitionSupport, overlayfsSupport, btrfsSupport, notes };
+  // SteamOS /home is ext4 with casefold, which needs CONFIG_UNICODE. The kernel
+  // exposes /sys/fs/ext4/features/casefold when it supports it.
+  const casefold = await runInDistro(distro, 'root', [
+    'bash',
+    '-lc',
+    'test -e /sys/fs/ext4/features/casefold && echo yes || echo no',
+  ]);
+  const casefoldSupport = casefold.stdout.trim().endsWith('yes');
+  if (!casefoldSupport) {
+    notes.push(
+      "This WSL kernel lacks ext4 casefold support (CONFIG_UNICODE); SteamOS's /home partition will not mount.",
+    );
+  }
+
+  return {
+    missingTools,
+    loopPartitionSupport,
+    overlayfsSupport,
+    btrfsSupport,
+    casefoldSupport,
+    notes,
+  };
 }

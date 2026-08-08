@@ -276,24 +276,9 @@ export class Orchestrator {
       this.setState('PREPARING_WORKSPACE');
       const workLinux = '/root/.steamos-nvidia-work';
       const inputLinux = `${workLinux}/input/${basename(imageWindowsPath)}`;
-      this.logger.info(`Copying image into ${this.distro}: ${imageWindowsPath} -> ${inputLinux}`);
-      await copyWindowsFileIntoDistro(
-        this.distro,
-        imageWindowsPath,
-        inputLinux,
-        sizeBytes,
-        (f) =>
-          this.emitBuildProgress({
-            state: 'PREPARING_WORKSPACE',
-            fraction: f,
-            operation: 'Copying image into build environment',
-          }),
-        signal,
-      );
-      this.throwIfAborted(signal);
 
-      // Probe WSL capabilities before committing to a 20-minute build.
-      this.setState('PREPARING_WSL');
+      // Probe WSL capabilities + install tools BEFORE the multi-GB copy, so a
+      // kernel/tooling problem fails fast instead of after a long transfer.
       let caps = await probeCapabilities(this.distro);
       if (caps.missingTools.length > 0) {
         // Commonly a first-run pacman failed on keyring/signature errors. Try to
@@ -329,6 +314,32 @@ export class Orchestrator {
           .join(', ');
         throw new Error(`This WSL kernel lacks: ${missing}. See TROUBLESHOOTING.md.`);
       }
+      if (!caps.casefoldSupport) {
+        throw new Error(
+          "Your WSL2 kernel can't mount SteamOS's /home partition — it is ext4 with " +
+            'casefold, which needs CONFIG_UNICODE (missing here). ' +
+            'Fix: run `wsl --update` then `wsl --shutdown`, reopen, and Build again. ' +
+            'If it still fails, your WSL kernel needs a build with CONFIG_UNICODE=y — see TROUBLESHOOTING.md.',
+        );
+      }
+
+      // Environment verified — now do the multi-GB copy into the distro.
+      this.logger.info(`Copying image into ${this.distro}: ${imageWindowsPath} -> ${inputLinux}`);
+      await copyWindowsFileIntoDistro(
+        this.distro,
+        imageWindowsPath,
+        inputLinux,
+        sizeBytes,
+        (f) =>
+          this.emitBuildProgress({
+            state: 'PREPARING_WORKSPACE',
+            fraction: f,
+            operation: 'Copying image into build environment',
+          }),
+        signal,
+      );
+      this.throwIfAborted(signal);
+      this.setState('PREPARING_WSL');
 
       // Read-only inspection is a best-effort PRE-check: if it works we can fail
       // early on a wrong image, but if it hiccups we continue — the vendored

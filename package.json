@@ -1,6 +1,6 @@
 {
   "name": "steamos-nvidia-usb-installer",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Windows desktop app that builds a bootable SteamOS USB installer with NVIDIA (RTX) driver support, orchestrating the upstream steamos-nvidia-installer workflow via WSL2.",
   "author": "SteamOS NVIDIA USB Installer contributors",
   "license": "MIT",
