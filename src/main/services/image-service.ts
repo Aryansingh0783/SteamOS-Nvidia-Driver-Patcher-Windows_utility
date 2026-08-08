@@ -196,11 +196,11 @@ const INSPECT_SCRIPT = [
   '  mount -o ro "$HOMEP" "$HOMEMNT" 2>/dev/null || true',
   '  [ -f "$HOMEMNT/deck/tools/repair_device.sh" ] && REPAIR=true',
   'fi',
-  'python3 - "$PARTS" "$KVER" "$GLIBC" "$VER" "$REPAIR" <<\'PY\'',
-  'import json,sys',
-  'parts=[p for p in sys.argv[1].split() if p]',
-  'print(json.dumps({"partitions":parts,"kernelVersion":sys.argv[2] or None,"glibc":sys.argv[3] or None,"steamosVersion":sys.argv[4] or None,"hasRepairDevice":sys.argv[5]=="true"}))',
-  'PY',
+  // Use `python3 -c` (program as an argv), NOT a heredoc: this whole script is
+  // executed via `bash -s` from a pipe, and a heredoc body does not reach
+  // `python3 -`'s stdin in that mode (python then runs an empty program and
+  // prints nothing → "inspection produced no result").
+  "python3 -c 'import json,sys; parts=[p for p in sys.argv[1].split() if p]; print(json.dumps({\"partitions\":parts,\"kernelVersion\":sys.argv[2] or None,\"glibc\":sys.argv[3] or None,\"steamosVersion\":sys.argv[4] or None,\"hasRepairDevice\":sys.argv[5]==\"true\"}))' \"$PARTS\" \"$KVER\" \"$GLIBC\" \"$VER\" \"$REPAIR\"",
 ].join('\n');
 
 interface InspectJson {
@@ -226,7 +226,13 @@ export async function inspectSteamosImage(
     .split(/\r?\n/)
     .reverse()
     .find((l) => l.trim().startsWith('{'));
-  if (!jsonLine) throw new Error('Image inspection produced no result.');
+  if (!jsonLine) {
+    const dbg = (result.stdout.trim() || result.stderr.trim() || '(no output)')
+      .split('\n')
+      .slice(-4)
+      .join(' ');
+    throw new Error(`Image inspection produced no result. Output: ${dbg}`);
+  }
   const data = JSON.parse(jsonLine) as InspectJson;
   return {
     path: linuxImagePath,

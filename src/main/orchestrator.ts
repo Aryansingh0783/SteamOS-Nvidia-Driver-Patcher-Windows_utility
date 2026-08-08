@@ -331,21 +331,34 @@ export class Orchestrator {
         throw new Error(`This WSL kernel lacks: ${missing}. See TROUBLESHOOTING.md.`);
       }
 
-      // Read-only inspection + structural validation (fail early).
+      // Read-only inspection is a best-effort PRE-check: if it works we can fail
+      // early on a wrong image, but if it hiccups we continue — the vendored
+      // build script does its own authoritative kernel/partition detection and
+      // will fail clearly in its first minute if the image is wrong.
       this.setState('INSPECTING_STEAMOS');
-      const info = await inspectSteamosImage(this.distro, inputLinux, sizeBytes);
-      this.imageInfo = info;
-      const structure = combineIssues(validateImageStructure(info));
-      this.imageValidation = combineIssues([...basics.issues, ...structure.issues]);
-      if (!structure.ok) {
-        throw new Error(
-          structure.issues.find((i) => i.severity === 'error')?.message ??
-            'Image structure validation failed',
+      let info: SteamosImageInfo | null = null;
+      try {
+        info = await inspectSteamosImage(this.distro, inputLinux, sizeBytes);
+      } catch (e) {
+        this.logger.warn(
+          `Could not pre-inspect the image (${e instanceof Error ? e.message : String(e)}). ` +
+            'Continuing — the NVIDIA build script will detect and validate the image itself.',
         );
       }
-      this.logger.info(
-        `SteamOS ${info.steamosVersion ?? '?'}, kernel ${info.kernelVersion ?? '?'}, glibc ${info.glibc ?? '?'}`,
-      );
+      if (info) {
+        this.imageInfo = info;
+        const structure = combineIssues(validateImageStructure(info));
+        this.imageValidation = combineIssues([...basics.issues, ...structure.issues]);
+        if (!structure.ok) {
+          throw new Error(
+            structure.issues.find((i) => i.severity === 'error')?.message ??
+              'Image structure validation failed',
+          );
+        }
+        this.logger.info(
+          `SteamOS ${info.steamosVersion ?? '?'}, kernel ${info.kernelVersion ?? '?'}, glibc ${info.glibc ?? '?'}`,
+        );
+      }
       this.throwIfAborted(signal);
 
       // Run the vendored script. States advance from progress fractions.

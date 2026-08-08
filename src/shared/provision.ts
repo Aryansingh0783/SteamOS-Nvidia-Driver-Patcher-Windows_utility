@@ -44,12 +44,17 @@ export const PROVISION_TOOLS = [
   'util-linux',
 ] as const;
 
-/** Bash run inside the new distro: refresh keyring, then install the tools. */
+/**
+ * Bash run inside the distro: initialise the pacman keyring FIRST (a fresh Arch
+ * WSL otherwise fails installs with signature errors), refresh the keyring
+ * package tolerantly, then install the tools. No `set -e` so a non-fatal keyring
+ * warning does not abort before the tools are installed; the final `pacman -S`
+ * exit code is what the caller checks.
+ */
 export const PROVISION_BASH =
-  'set -e; ' +
-  'pacman -Sy --noconfirm archlinux-keyring; ' +
   'pacman-key --init; pacman-key --populate archlinux; ' +
-  `pacman -Su --noconfirm --needed ${PROVISION_TOOLS.join(' ')}`;
+  'pacman -Sy --noconfirm --needed archlinux-keyring || true; ' +
+  `pacman -S --noconfirm --needed ${PROVISION_TOOLS.join(' ')}`;
 
 export function buildProvisionSteps(p: ProvisionPaths): ProvisionStep[] {
   assertDistroName(p.distro);
