@@ -1,0 +1,4 @@
+# Shell scripts must stay LF even when checked out on Windows (the Windows CI
+# runner would otherwise convert LF->CRLF and break bash: $'\r': command not found).
+*.sh text eol=lf
+resources/steamos-nvidia-installer.sh text eol=lf

@@ -263,7 +263,26 @@ export async function runBuildScript(
   } = {},
 ): Promise<ProcessResult> {
   const args = buildScriptArgs(options, imageLinuxPath, workdirLinuxPath);
-  const inv = buildScriptInvocation(distro, scriptLinuxPath, args);
+
+  // The packaged .sh can arrive with Windows CRLF line endings (a Windows git
+  // checkout converts LF→CRLF), which breaks bash ($'\r': command not found).
+  // Copy it into the distro with carriage returns stripped and run that.
+  const normalizedScript = `${workdirLinuxPath}/steamos-nvidia-installer.sh`;
+  const prep = await runInDistro(
+    distro,
+    'root',
+    bashScriptArgs('DEST="$2"; mkdir -p "${DEST%/*}"; tr -d \'\\r\' < "$1" > "$DEST"; chmod +x "$DEST"', [
+      scriptLinuxPath,
+      normalizedScript,
+    ]),
+  );
+  if (prep.exitCode !== 0) {
+    throw new Error(
+      `Could not prepare the build script: ${prep.stderr.trim() || prep.stdout.trim() || `exit ${String(prep.exitCode)}`}`,
+    );
+  }
+
+  const inv = buildScriptInvocation(distro, normalizedScript, args);
   const handleLine = (line: string): void => {
     hooks.onLog?.(line);
     const stage = matchBuildStage(line);
