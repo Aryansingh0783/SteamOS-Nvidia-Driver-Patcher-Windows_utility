@@ -12,6 +12,8 @@
  * its output.
  */
 import { createReadStream, createWriteStream } from 'node:fs';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { RunOptions } from './process-runner.js';
 import { runInDistro, bashScriptArgs } from './wsl.js';
@@ -82,6 +84,45 @@ export async function copyImageIntoDistro(
     throw new Error(`Copying the image into the build environment failed: ${detail}`);
   }
   onProgress?.(1);
+}
+
+/**
+ * Copy a file OUT of the distro to a Windows path, reading through the 9p share
+ * from the Windows side. Avoids passing a space-containing `/mnt/c` destination
+ * (the app's workspace lives under "…\SteamOS NVIDIA USB Installer\…") through
+ * wsl.exe, which mangles spaces.
+ */
+export async function copyFileOutOfDistro(
+  distro: string,
+  srcLinuxPath: string,
+  destWindowsPath: string,
+  onProgress?: (fraction: number) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const st = await runInDistro(distro, 'root', ['stat', '-c', '%s', srcLinuxPath]);
+  const total = Number.parseInt(st.stdout.trim(), 10) || 0;
+  await mkdir(dirname(destWindowsPath), { recursive: true });
+
+  let done = false;
+  let lastErr: unknown;
+  for (const host of ['wsl.localhost', 'wsl$']) {
+    if (signal?.aborted) throw new Error('Copy cancelled.');
+    try {
+      onProgress?.(0.02);
+      await streamCopy(wslUncPath(host, distro, srcLinuxPath), destWindowsPath, total, onProgress, signal);
+      onProgress?.(1);
+      done = true;
+      break;
+    } catch (e) {
+      lastErr = e;
+      if (signal?.aborted) throw e instanceof Error ? e : new Error(String(e));
+    }
+  }
+  if (!done) {
+    throw new Error(
+      `Could not copy the patched image out of the distro: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
+    );
+  }
 }
 
 /** Build a `\\host\distro\...` UNC path for a Linux path inside the distro. */
@@ -252,7 +293,7 @@ export async function inspectSteamosImage(
  */
 export async function runBuildScript(
   distro: string,
-  scriptLinuxPath: string,
+  scriptWindowsPath: string,
   options: BuildOptions,
   imageLinuxPath: string,
   workdirLinuxPath: string,
@@ -264,25 +305,35 @@ export async function runBuildScript(
 ): Promise<ProcessResult> {
   const args = buildScriptArgs(options, imageLinuxPath, workdirLinuxPath);
 
-  // The packaged .sh can arrive with Windows CRLF line endings (a Windows git
-  // checkout converts LF→CRLF), which breaks bash ($'\r': command not found).
-  // Copy it into the distro with carriage returns stripped and run that.
-  const normalizedScript = `${workdirLinuxPath}/steamos-nvidia-installer.sh`;
-  const prep = await runInDistro(
-    distro,
-    'root',
-    bashScriptArgs('DEST="$2"; mkdir -p "${DEST%/*}"; tr -d \'\\r\' < "$1" > "$DEST"; chmod +x "$DEST"', [
-      scriptLinuxPath,
-      normalizedScript,
-    ]),
-  );
-  if (prep.exitCode !== 0) {
+  // Place the script inside the distro at a clean, space-free /root path. We read
+  // it on the WINDOWS side (Node), strip CR (the packaged .sh may be CRLF), and
+  // write it into the distro via the 9p share — this avoids BOTH the CRLF
+  // problem AND passing the app's install path (which contains spaces, e.g.
+  // "…\SteamOS NVIDIA USB Installer\…") through wsl.exe, which mangles it.
+  const workRoot = workdirLinuxPath.replace(/\/[^/]*$/, '') || '/root/.steamos-nvidia-work';
+  const scriptDistroPath = `${workRoot}/steamos-nvidia-installer.sh`;
+  const content = (await readFile(scriptWindowsPath, 'utf8')).replace(/\r/g, '');
+  await runInDistro(distro, 'root', ['mkdir', '-p', workRoot]);
+
+  let written = false;
+  let lastErr: unknown;
+  for (const host of ['wsl.localhost', 'wsl$']) {
+    try {
+      await writeFile(wslUncPath(host, distro, scriptDistroPath), content, 'utf8');
+      written = true;
+      break;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  if (!written) {
     throw new Error(
-      `Could not prepare the build script: ${prep.stderr.trim() || prep.stdout.trim() || `exit ${String(prep.exitCode)}`}`,
+      `Could not write the build script into the distro: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
     );
   }
+  await runInDistro(distro, 'root', ['chmod', '+x', scriptDistroPath]);
 
-  const inv = buildScriptInvocation(distro, normalizedScript, args);
+  const inv = buildScriptInvocation(distro, scriptDistroPath, args);
   const handleLine = (line: string): void => {
     hooks.onLog?.(line);
     const stage = matchBuildStage(line);

@@ -16,7 +16,6 @@ import {
   WORKFLOW_ORDER,
 } from '@shared/workflow.js';
 import { validateImageBasics, combineIssues, validateImageStructure } from '@shared/image-validation.js';
-import { windowsPathToWslPath } from '@shared/command.js';
 import { DEFAULT_BUILD_OPTIONS } from '@shared/types.js';
 import type {
   BuildOptions,
@@ -30,12 +29,12 @@ import type {
 import type { AppSnapshot, BuildProgress, SelectedImage } from '@shared/ipc-contract.js';
 import { Logger } from './services/logger.js';
 import { checkEnvironment } from './services/environment.js';
-import { BUILDER_DISTRO, probeCapabilities, runInDistro } from './services/wsl.js';
+import { BUILDER_DISTRO, probeCapabilities } from './services/wsl.js';
 import { scanDisks } from './services/usb-service.js';
 import { flashImage, FlashCancelledError } from './services/flash-service.js';
 import { provisionBuilderDistro, installBuilderTools } from './services/provision.js';
 import {
-  copyImageIntoDistro,
+  copyFileOutOfDistro,
   copyWindowsFileIntoDistro,
   deriveOutputPath,
   inspectSteamosImage,
@@ -366,7 +365,7 @@ export class Orchestrator {
       const buildWorkdir = `${workLinux}/build`;
       const result = await runBuildScript(
         this.distro,
-        windowsPathToWslPath(this.config.scriptWindowsPath),
+        this.config.scriptWindowsPath,
         options,
         inputLinux,
         buildWorkdir,
@@ -388,14 +387,11 @@ export class Orchestrator {
       const outputLinux = deriveOutputPath(inputLinux);
       const outName = basename(outputLinux);
       const outWindows = `${this.config.workspaceWindowsPath}\\${outName}`;
-      const outWindowsLinux = windowsPathToWslPath(outWindows);
       this.logger.info(`Copying patched image out to ${outWindows}`);
-      const outSize = await this.remoteFileSize(outputLinux);
-      await copyImageIntoDistro(
+      await copyFileOutOfDistro(
         this.distro,
         outputLinux,
-        outWindowsLinux,
-        outSize,
+        outWindows,
         (f) =>
           this.emitBuildProgress({
             state: 'VALIDATING_PATCH',
@@ -502,13 +498,6 @@ export class Orchestrator {
     const report = await checkEnvironment(this.config.workspaceWindowsPath);
     this.environment = report;
     return report;
-  }
-
-  private async remoteFileSize(linuxPath: string): Promise<number> {
-    const r = await runInDistro(this.distro, 'root', ['stat', '-c', '%s', linuxPath]);
-    const n = Number.parseInt(r.stdout.trim(), 10);
-    if (Number.isNaN(n)) throw new Error(`Could not stat patched image at ${linuxPath}`);
-    return n;
   }
 
   private throwIfAborted(signal: AbortSignal): void {
